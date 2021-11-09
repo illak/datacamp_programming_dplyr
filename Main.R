@@ -9,7 +9,7 @@ data1 %>%
   select(country, continent, region, year, perc_rural_pop, perc_college_complete)
 
 
-# Capitulo 1 --------------------------------------------------------------
+# Capítulo 1 (Select HELPERS)---------------------------------------------------
 
 continents_vector <- c("Africa","Asia")
 
@@ -124,7 +124,7 @@ imf_data %>%
   select(country, year, matches("gdp$"))
 
 
-# Capitulo 2 --------------------------------------------------------------
+# Capítulo 2 (Relocación y ACROSS) ----------------------------------------------
 
 # Relocation
 reordered_wb <- data1 %>% 
@@ -160,7 +160,7 @@ names(reordered_imf)
 
 
 imf_data %>% 
-  select(
+  select(-
     # Choose columns iso to year
     iso:year,
     # Choose columns starting with "gov" using regular expression
@@ -281,3 +281,236 @@ imf_data %>%
     .cols = matches("perc_change$"),
     .fns = ~ between(., -1, 1))) %>%
   select(country, year, ends_with("perc_change"))
+
+
+
+# Capítulo 3 (JOINS) ------------------------------------------------------------
+
+# IMF data from Uruguay
+uruguay_imf <- imf_data %>% 
+  select(iso, country, year, consumer_price_index) %>% 
+  filter(country == "Uruguay", year > 2010)
+
+uruguay_imf
+
+# World Bank data from Uruguay
+uruguay_wb <- data1 %>% 
+  select(iso, country, year, perc_rural_pop) %>% 
+  filter(country == "Uruguay")
+
+uruguay_wb
+
+# LEFT
+uruguay_imf %>% 
+  left_join(uruguay_wb)
+
+# INNER
+uruguay_imf %>% 
+  inner_join(uruguay_wb,
+             by = c("iso","country","year"))
+
+# ANTI
+uruguay_imf %>% 
+  anti_join(uruguay_wb,
+            by = c("iso","country","year"))
+
+# Ejemplos
+imf_subset <- imf_data %>% 
+  select(iso, country, year, population_in_millions)
+
+asia_wb <- data1 %>% 
+  filter(continent=="Asia") %>% 
+  select(iso, country, year, fertility_rate, perc_college_complete)
+
+# Return all rows of asia_wb and matching rows from imf_subset
+asia_wb %>%
+  left_join(imf_subset)
+
+# Return rows with matches in asia_wb and imf_subset
+asia_wb %>%
+  inner_join(imf_subset)
+
+# Return rows from asia_wb with no match in imf_subset
+asia_wb %>%
+  anti_join(imf_subset)
+
+
+suspect_isos <- c("KOR","BRN","IRN")
+
+# Distinct iso and country combos for each tibble
+asia_wb_combos <- distinct(asia_wb %>% select(iso, country))
+imf_combos <- distinct(imf_subset %>% select(iso, country))
+
+# Anti join to find only those in asia_wb_combos
+asia_wb_combos %>%
+  anti_join(imf_combos)
+
+
+# Compare country names of the suspect isos in both tibbles
+imf_subset %>% 
+  filter(iso %in% suspect_isos) %>%
+  distinct(iso, country)
+asia_wb %>% 
+  filter(iso %in% suspect_isos) %>%
+  distinct(iso, country)
+
+# INTERSECT VS INNER_JOIN
+# INTERSECT BUSCA FILAS EN COMÚN
+# INNER_JOIN BUSCA CLAVES INDIVIDUALES EN COMÚN
+
+# Identify distinct country names for asia_wb
+asia_wb %>%
+  distinct(country)
+
+# Find rows in both of the two combos datasets
+asia_wb_combos %>%
+  intersect(imf_combos)
+
+
+# Find rows in one or the other tibble
+asia_wb_combos %>%
+  union(imf_combos)
+
+
+# Intersect Asia World Bank data combos with IMF combos
+asia_wb_combos %>%
+  intersect(imf_combos)
+
+# Union Asia World Bank data combos with IMF combos
+asia_wb_combos %>%
+  union(imf_combos)
+
+# Give all rows in both Asia World Bank data and IMF combos
+asia_wb_combos %>%
+  union_all(imf_combos)
+
+
+
+# Isolate on Portugal rows and year column in both datasets
+prt_imf <- imf_data %>% 
+  filter(iso=="PRT") %>% 
+  select(year)
+prt_wb <- data1 %>% 
+  filter(iso=="PRT") %>%
+  select(year)
+
+# Check for set equality
+setequal(prt_imf, prt_wb)
+
+# Identify years are in prt_imf but not in prt_wb
+setdiff(prt_imf, prt_wb)
+
+
+# Find distinct ISO and country names in the two datasets
+imf_countries <- imf_data %>% 
+  distinct(country, iso)
+world_bank_countries <- data1 %>% 
+  distinct(country, iso)
+
+# Find rows in imf_countries but not in world_bank_countries
+setdiff(imf_countries, world_bank_countries)
+
+# Find isos in world_bank_countries but not in imf_countries
+setdiff(world_bank_countries %>% select(iso), 
+        imf_countries %>% select(iso))
+
+# Use anti_join() to figure out which country this is
+world_bank_countries %>%
+  anti_join(imf_countries, by="iso")
+
+
+
+# Capítulo 4 --------------------------------------------------------------
+
+imf_data %>% 
+  select(iso, country, year, consumer_price_index) %>% 
+  filter(country == "Uruguay", year > 2010)
+
+
+# Some functions
+cpi_by_country <- function(country_name) {
+  imf_data %>% 
+    select(iso, country, year, consumer_price_index) %>% 
+    filter(country == country_name,
+           year > 2010)
+}
+
+cpi_by_country(country_name = "Samoa")
+
+
+
+unemployment_by_region <- function(region_name) {
+  data1 %>%
+    select(iso, country, year, 
+           continent, region, unemployment_rate) %>%
+    filter(region == region_name)
+}
+
+# Call the function to get Eastern Europe results
+unemployment_by_region("Eastern Europe")
+
+# Para group_by necesitamos otro tipo de operador: {{}}
+grouped_median_unemploy <- function(group_col) {
+  data1 %>%
+    select(iso, country, year, 
+           continent, region, unemployment_rate) %>%
+    # NOTAR EL OPERADOR PARA EL PARÁMETRO
+    group_by({{ group_col }}) %>% 
+    summarize(
+      median_unemployment = median(unemployment_rate))
+}
+
+# De esta manera podemos pasar nombres de columna a la función
+grouped_median_unemploy(region)
+
+
+# {{}} ES LO MISMO QUE USAR !!enquo()
+grouped_median_for_column <- function(group_col, col_to_median) {
+  data1 %>% 
+    group_by(!!enquo(group_col)) %>% 
+    summarize(median(!!enquo(col_to_median), 
+                     na.rm = TRUE))
+}
+
+# Find median infant mortality rate by region
+grouped_median_for_column(region, infant_mortality_rate)
+
+
+# ¿CÓMO LE DAMOS NOMBRE A LA COLUMNA CALCULADA EN MUTATE? usamos as_name y := (walrus operator)
+library(rlang) # as_name
+
+grouped_median_for_column <- function(.data, group_col, col_to_median) {
+  name_of_col_to_median <- as_name(enquo(col_to_median)) # nombre de la nueva columna
+  new_col_name <- paste0("median_of_", name_of_col_to_median) # completamos nombre
+  
+  .data %>% 
+    group_by( {{group_col}} ) %>% 
+    # notar uso de: bang-bang + walrus operator (!!  +  :=)
+    summarize(!!new_col_name := median( {{col_to_median}} ,
+                                        na.rm = TRUE))
+}
+
+# Group world_bank_data by continent to find college done %
+data1 %>% 
+  grouped_median_for_column(continent, perc_college_complete)
+
+
+# Ejercicios
+
+# Median fertility rate by region for world_bank_data
+region_fert_rate <- data1 %>% 
+  grouped_median_for_column(region, fertility_rate)
+
+# Sort by descending median rate
+region_fert_rate %>% 
+  arrange(desc(median_of_fertility_rate))
+
+# Median infant mortality rate by region (descending)
+world_bank_data %>% 
+  grouped_median_for_column(region, infant_mortality_rate) %>% 
+  arrange(desc(median_of_infant_mortality_rate))
+
+# Se puede observar que Africa tiene resultados altos para ambos mortalidad infantil
+# y tasa de fertilidad
+
+
