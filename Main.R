@@ -215,3 +215,69 @@ imf_data %>%
            # Prepend "min_" to column names
            .names = "min_{.col}")
   )
+
+# Combinamos ACROSS() con COUNT()
+imf_data %>% 
+  count(
+    # Count over character class columns
+    across(
+      where(is.character)
+    ),
+    # Arrange the results by descending count
+    sort = TRUE)
+
+
+# rowwise() con c_across() -> ( c_across se usa con rowwise casi siempre!! )
+
+data1 %>% 
+  rowwise() %>% 
+  mutate(num_missing = sum(is.na(
+    c_across(infant_mortality_rate:last_col())
+  ))) %>% 
+  select(country:year, num_missing) %>% 
+  arrange(desc(num_missing))
+
+
+# Filtrar si ALGUNA de las columnas cumple con la condición
+data1 %>% 
+  filter(if_any(
+    .cols = starts_with("perc"),
+    .fns = ~ .x < 5
+  )) %>% 
+  select(country, year, starts_with("perc"))
+
+# Filtrar si TODAS las columnas cumplen con la condición
+data1 %>% 
+  filter(if_all(
+    .cols = starts_with("perc"),
+    .fns = ~ .x >= 25
+  )) %>% 
+  select(country, year, starts_with("perc"))
+
+
+# Ejemplos
+
+imf_data %>% 
+  # Specify that calculations are done across the row
+  rowwise() %>% 
+  # Count missings in gdp_in_billions_of_usd to last column
+  mutate(num_missing = sum(is.na(
+    c_across(gdp_in_billions_of_usd:last_col()))
+  )) %>% 
+  select(country:year, num_missing) %>% 
+  # Arrange by descending number of missing entries
+  arrange(desc(num_missing))
+
+
+# Rows with less than 0 for any "perc_change" ending columns
+imf_data %>%
+  filter(if_any(.cols = matches("perc_change$"), 
+                .fns = ~ .x < 0)) %>% 
+  select(country, year, ends_with("perc_change"))
+
+# Rows from -1 to 1 on ALL "perc_change" ending columns
+imf_data %>%
+  filter(if_all(
+    .cols = matches("perc_change$"),
+    .fns = ~ between(., -1, 1))) %>%
+  select(country, year, ends_with("perc_change"))
